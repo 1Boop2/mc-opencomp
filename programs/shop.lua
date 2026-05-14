@@ -234,7 +234,7 @@ local function render()
 
   -- ── grid ──
   local inv = inv_counts()
-  local me_snap = me_proxy and me_lib.snapshot(me_proxy) or {}
+  local me_snap = me_r.primary and me_lib.snapshot(me_r.primary) or {}
 
   local start = (current_page - 1) * ITEMS_PER_PAGE + 1
   local stop = math.min(start + ITEMS_PER_PAGE - 1, #visible)
@@ -293,10 +293,10 @@ local function buy(item, n)
                                cost - state.balance, cost)
     return
   end
-  if not me_proxy then
+  if not me_r.primary then
     status_msg = "Нет ME — покупка невозможна"; return
   end
-  local ok, moved = me_lib.request(me_proxy, item.id, item.meta,
+  local ok, moved = me_lib.request(me_r, item.id, item.meta,
                                    n, STORAGE_SIDE, 1)
   local m = tonumber(moved) or 0
   if ok and m > 0 then
