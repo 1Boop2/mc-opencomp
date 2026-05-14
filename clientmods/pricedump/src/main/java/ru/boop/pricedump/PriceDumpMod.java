@@ -200,11 +200,70 @@ public class PriceDumpMod {
             File computedFile = new File(mc.mcDataDir, "computed_prices.json");
             writeJson(computedFile, computed, sender);
 
+            // Display names — для всех просканированных предметов
+            Map<String, String> names = collectDisplayNames();
+            File namesFile = new File(mc.mcDataDir, "display_names.json");
+            writeJsonStr(namesFile, names, sender);
+
             sender.addChatMessage(new ChatComponentText(String.format(
-                "[PriceDump] tooltip: %d/%d → %s | computed: %d → %s | sample → %s",
+                "[PriceDump] tooltip: %d/%d → %s | computed: %d → %s | names: %d → %s",
                 hits, scanned, outFile.getName(),
-                computed.size(), computedFile.getName(), debugFile.getName()
+                computed.size(), computedFile.getName(),
+                names.size(), namesFile.getName()
             )));
+        }
+
+        // ── Собрать display_name для всех предметов реестра ─────────
+        private static Map<String, String> collectDisplayNames() {
+            Map<String, String> names = new LinkedHashMap<>();
+            for (Object keyObj : Item.itemRegistry.getKeys()) {
+                String id = keyObj.toString();
+                Item item = (Item) Item.itemRegistry.getObject(id);
+                if (item == null) continue;
+                List<ItemStack> stacks = new ArrayList<>();
+                try {
+                    item.getSubItems(item, item.getCreativeTab(), stacks);
+                } catch (Throwable ignored) {}
+                if (stacks.isEmpty()) stacks.add(new ItemStack(item));
+                for (ItemStack stack : stacks) {
+                    if (stack == null) continue;
+                    try {
+                        String name = stack.getDisplayName();
+                        if (name != null && !name.isEmpty()) {
+                            names.put(id + ":" + stack.getItemDamage(), name);
+                        }
+                    } catch (Throwable ignored) {}
+                }
+            }
+            return names;
+        }
+
+        // ── Запись Map<String, String> в JSON ────────────────────────
+        private static void writeJsonStr(File f, Map<String, String> data,
+                                         ICommandSender sender) {
+            try (Writer w = new OutputStreamWriter(
+                    new FileOutputStream(f), StandardCharsets.UTF_8)) {
+                w.write("{\n");
+                int i = 0, size = data.size();
+                for (Map.Entry<String, String> e : data.entrySet()) {
+                    String k = escapeJson(e.getKey());
+                    String v = escapeJson(e.getValue());
+                    w.write("  \"" + k + "\": \"" + v + "\"");
+                    if (++i < size) w.write(",");
+                    w.write("\n");
+                }
+                w.write("}\n");
+            } catch (IOException ex) {
+                sender.addChatMessage(new ChatComponentText(
+                    "[PriceDump] write failed for " + f.getName() + ": " + ex.getMessage()));
+            }
+        }
+
+        private static String escapeJson(String s) {
+            if (s == null) return "";
+            return s.replace("\\", "\\\\").replace("\"", "\\\"")
+                    .replace("\n", "\\n").replace("\t", "\\t")
+                    .replace("\r", "\\r");
         }
 
         // ── Запись Map в JSON-файл ────────────────────────────────────

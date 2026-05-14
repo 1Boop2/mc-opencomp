@@ -10,7 +10,9 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(ROOT, "prices.json")
 COMPUTED = os.path.join(ROOT, "computed_prices.json")
+NAMES = os.path.join(ROOT, "display_names.json")
 DST = os.path.join(ROOT, "lib", "prices.lua")
+DST_NAMES = os.path.join(ROOT, "lib", "display_names.lua")
 
 VERSION = "2026-05-14-generated"
 
@@ -68,6 +70,25 @@ def main():
     with open(DST, "w", encoding="utf-8", newline="\n") as f:
         f.write("\n".join(lines))
     print(f"wrote {DST} ({len(data)} prices)")
+
+    # display_names — отдельный файл lib/display_names.lua
+    if os.path.exists(NAMES):
+        with open(NAMES, encoding="utf-8") as f:
+            names = json.load(f)
+        name_lines = [
+            f"-- @version: {VERSION} — lib/display_names: id:meta → читаемое имя",
+            "-- Сгенерировано из display_names.json.",
+            "",
+            "return {",
+        ]
+        for k, v in sorted(names.items()):
+            k_esc = k.replace('\\', '\\\\').replace('"', '\\"')
+            v_esc = v.replace('\\', '\\\\').replace('"', '\\"')
+            name_lines.append(f'  ["{k_esc}"] = "{v_esc}",')
+        name_lines += ["}", ""]
+        with open(DST_NAMES, "w", encoding="utf-8", newline="\n") as f:
+            f.write("\n".join(name_lines))
+        print(f"wrote {DST_NAMES} ({len(names)} names)")
 
 
 if __name__ == "__main__":
