@@ -76,11 +76,7 @@ end
 local function draw_text()
   io.write("\n")
   local owner = pim.owner(proxy)
-  if not owner then
-    print("(на PIM никого нет)")
-    return
-  end
-  print("Player: " .. owner)
+  print("PIM " .. addr:sub(1, 8) .. (owner and ("  (" .. owner .. ")") or ""))
 
   local armor = pim.armor(proxy)
   if armor then
@@ -95,7 +91,9 @@ local function draw_text()
     print("Inventory: <ошибка чтения>")
     return
   end
-  print(string.format("Inventory (%d slots, занято):", size))
+  local nonempty = 0
+  for i = 1, size do if inv[i] then nonempty = nonempty + 1 end end
+  print(string.format("Inventory (%d/%d занято):", nonempty, size))
   for i = 1, size do
     local st = inv[i]
     if st then
@@ -143,13 +141,12 @@ local function draw_grid()
   gpu.fill(1, 1, w, h, " ")
 
   local owner = pim.owner(proxy)
-  local title = owner and ("Player: " .. owner) or "(PIM пуст)"
+  local title = "PIM " .. addr:sub(1, 8) ..
+                (owner and ("  (" .. owner .. ")") or "")
   gpu.set(2, 1, title)
   gpu.setForeground(0x666666)
-  gpu.set(2, 2, "PIM " .. addr:sub(1, 8) .. " — Ctrl+Alt+C выход")
+  gpu.set(2, 2, "watch — Ctrl+Alt+C выход")
   gpu.setForeground(0xFFFFFF)
-
-  if not owner then return end
 
   local x0 = 2
   local y0 = 4

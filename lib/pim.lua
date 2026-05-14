@@ -6,7 +6,7 @@
 local component = require("component")
 
 local M = {}
-M._VERSION = "2026-05-14.5-pairs-methods"
+M._VERSION = "2026-05-14.6-no-owner-heuristic"
 
 -- Известные имена типа компонента PIM в разных версиях OpenPeripheral.
 -- "pim" — короткое имя, которое видно через команду `components` в OpenOS.
@@ -104,21 +104,14 @@ function M.armor(proxy)
   return result, size
 end
 
---- Имя игрока на PIM, или nil.
---- В некоторых версиях нет API для имени — fallback к эвристике через
---- getAllStacks: если возвращает непустой массив, считаем что игрок стоит.
+--- Имя игрока на PIM. nil если версия PIM не выставляет имя
+--- (тогда сам факт присутствия определять нельзя — getAllStacks врёт
+--- на пустом инвентаре).
 function M.owner(proxy)
   for _, m in ipairs({ "getOwner", "getName", "getPlayerName" }) do
     if type(proxy[m]) == "function" then
       local ok, v = pcall(proxy[m])
       if ok and v and v ~= "" then return v end
-    end
-  end
-  -- Эвристика
-  if type(proxy.getAllStacks) == "function" then
-    local ok, all = pcall(proxy.getAllStacks)
-    if ok and type(all) == "table" and next(all) then
-      return "(player on PIM)"
     end
   end
   return nil
