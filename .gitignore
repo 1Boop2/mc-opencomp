@@ -1,0 +1,9 @@
+# Локальные настройки Claude Code (permissions и т.п.)
+.claude/
+
+# Lua bytecode
+*.luac
+
+# OS
+Thumbs.db
+.DS_Store
