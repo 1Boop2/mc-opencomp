@@ -1,8 +1,8 @@
 package ru.boop.pricedump;
 
+import cpw.mods.fml.common.FMLCommonHandler;
 import cpw.mods.fml.common.FMLLog;
 import cpw.mods.fml.common.Mod;
-import cpw.mods.fml.common.event.FMLInitializationEvent;
 import cpw.mods.fml.common.eventhandler.SubscribeEvent;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.entity.EntityClientPlayerMP;
@@ -47,15 +47,19 @@ public class PriceDumpMod {
 
     private boolean greeted = false;
 
-    @Mod.EventHandler
-    public void init(FMLInitializationEvent event) {
-        FMLLog.info("[PriceDump %s] init, side=%s", VERSION, event.getSide());
-        // Регистрируем команду только на клиенте — на сервере ClientCommandHandler
-        // и Minecraft.getMinecraft() недоступны.
-        if (event.getSide().isClient()) {
-            ClientCommandHandler.instance.registerCommand(new DumpCommand());
-            MinecraftForge.EVENT_BUS.register(this);
-            FMLLog.info("[PriceDump] /dumpprices зарегистрирована");
+    // Конструктор без аргументов — требование jar-to-dll: весь init здесь,
+    // обычный FMLInitializationEvent в native-injection режиме не отрабатывает.
+    public PriceDumpMod() {
+        try {
+            if (FMLCommonHandler.instance().getSide().isClient()) {
+                ClientCommandHandler.instance.registerCommand(new DumpCommand());
+                MinecraftForge.EVENT_BUS.register(this);
+                FMLLog.info("[PriceDump %s] init done (constructor), /dumpprices registered",
+                            VERSION);
+            }
+        } catch (Throwable t) {
+            FMLLog.severe("[PriceDump] constructor failed: " + t);
+            t.printStackTrace();
         }
     }
 
