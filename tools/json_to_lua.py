@@ -73,11 +73,20 @@ def main():
 
     # display_names — отдельный файл lib/display_names.lua
     if os.path.exists(NAMES):
+        import re
+        # Удаляем форматные коды Forge "§X" из имён, чтобы UI шопа
+        # не показывал мусор.
+        color_rx = re.compile(r"§[0-9a-fk-or]")
         with open(NAMES, encoding="utf-8") as f:
-            names = json.load(f)
+            raw_names = json.load(f)
+        names = {}
+        for k, v in raw_names.items():
+            clean = color_rx.sub("", v or "").strip()
+            if clean:
+                names[k] = clean
         name_lines = [
             f"-- @version: {VERSION} — lib/display_names: id:meta → читаемое имя",
-            "-- Сгенерировано из display_names.json.",
+            "-- Сгенерировано из display_names.json (с очисткой §-кодов).",
             "",
             "return {",
         ]
