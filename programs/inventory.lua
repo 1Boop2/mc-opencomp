@@ -68,22 +68,29 @@ if cmd == "dump" then
   end
   show(string.format("getStackInSlot(%d)", slot), st)
 
-  -- 2) Попытка extended: иногда вторым аргументом передают true для полного NBT
-  local ok2, st2 = pcall(proxy.getStackInSlot, slot, true)
-  if ok2 and type(st2) == "table" then
-    show(string.format("getStackInSlot(%d, true)", slot), st2)
+  -- 2) Wrapper-объект с advanced API: .all() / .keys() / .single(key)
+  local ok2, wrap = pcall(proxy.getStackInSlot, slot, true)
+  if ok2 and type(wrap) == "table" and type(wrap.all) == "function" then
+    local ok_keys, keys = pcall(wrap.keys)
+    if ok_keys then show("stack:keys()", keys) end
+
+    local ok_all, all = pcall(wrap.all)
+    if ok_all then show("stack:all()", all) end
+
+    if type(wrap.listMethods) == "function" then
+      local ok_lm, lm = pcall(wrap.listMethods)
+      if ok_lm then show("stack:listMethods()", lm) end
+    end
   end
 
-  -- 3) getAdvancedMethodsData — у некоторых версий выдаёт метаинфу о расширенных вызовах
+  -- 3) Методы самого PIM-компонента — listMethods и getAdvancedMethodsData
+  if type(proxy.listMethods) == "function" then
+    local ok3, lm = pcall(proxy.listMethods)
+    if ok3 then show("proxy.listMethods()", lm) end
+  end
   if type(proxy.getAdvancedMethodsData) == "function" then
-    local ok3, data = pcall(proxy.getAdvancedMethodsData)
-    if ok3 then show("getAdvancedMethodsData()", data) end
-  end
-
-  -- 4) doc('getStackInSlot') — docstring расскажет какие параметры принимает
-  if type(proxy.doc) == "function" then
-    local ok4, d = pcall(proxy.doc, "getStackInSlot")
-    if ok4 then show("doc('getStackInSlot')", d) end
+    local ok4, data = pcall(proxy.getAdvancedMethodsData)
+    if ok4 then show("proxy.getAdvancedMethodsData()", data) end
   end
 
   return 0
