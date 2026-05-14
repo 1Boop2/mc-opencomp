@@ -105,31 +105,46 @@ end
 -- ── GPU-сетка для watch ───────────────────────────────────────
 local gpu = component.gpu
 
-local CELL_W, CELL_H = 7, 3
+local CELL_W, CELL_H = 8, 3
 local GRID_COLS = 9
 local GRID_ROWS_MAIN = 3   -- основной инвентарь: 3 ряда (слоты 10..36)
                             -- хотбар (слоты 1..9) рисуется отдельно ниже
+
+-- Достать короткое имя предмета: отрезать modid-префикс (minecraft:...) и
+-- обрезать до n символов.
+local function short_name(st, n)
+  local s = pim.name(st)
+  if not s or s == "" then return "" end
+  local colon = s:find(":")
+  if colon then s = s:sub(colon + 1) end
+  if #s > n then s = s:sub(1, n) end
+  return s
+end
 
 local function draw_cell(x, y, slot, st)
   local qty = pim.qty(st)
   if qty > 0 then
     gpu.setBackground(0x1F3D1F)
-    gpu.setForeground(0xCCFFCC)
   else
     gpu.setBackground(0x202020)
-    gpu.setForeground(0x555555)
   end
   gpu.fill(x, y, CELL_W, CELL_H, " ")
 
-  -- номер слота слева сверху мелким серым
+  -- номер слота сверху слева
   gpu.setForeground(0x808080)
   gpu.set(x + 1, y, string.format("%2d", slot))
 
-  -- количество — по центру
   if qty > 0 then
+    -- имя предмета по центру, обрезанное под ширину ячейки
+    local name = short_name(st, CELL_W - 2)
+    if name ~= "" then
+      gpu.setForeground(0xCCFFCC)
+      gpu.set(x + math.floor((CELL_W - #name) / 2), y + 1, name)
+    end
+    -- количество снизу: x<qty>
     gpu.setForeground(0xFFFFFF)
-    local s = tostring(qty)
-    gpu.set(x + math.floor((CELL_W - #s) / 2), y + 1, s)
+    local q = "x" .. tostring(qty)
+    gpu.set(x + math.floor((CELL_W - #q) / 2), y + 2, q)
   end
 end
 
