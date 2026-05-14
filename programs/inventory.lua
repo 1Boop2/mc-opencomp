@@ -25,12 +25,10 @@ local args, opts = shell.parse(...)
 local proxy, addr, ptype = pim.find()
 if not proxy then
   io.stderr:write("PIM-компонент не найден.\n")
-  io.stderr:write("Доступные компоненты (для диагностики):\n")
+  io.stderr:write("Доступные компоненты:\n")
   for c_addr, c_type in component.list() do
     io.stderr:write(string.format("  %-32s  %s\n", c_type, c_addr:sub(1, 8)))
   end
-  io.stderr:write("\nЕсли видишь тут что-то похожее на PIM с непривычным именем — \n")
-  io.stderr:write("скажи, какое именно. Добавлю в lib/pim.lua → KNOWN_TYPES.\n")
   return 1
 end
 
