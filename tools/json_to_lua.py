@@ -24,6 +24,9 @@ def main():
             data.update(json.load(f))
     with open(SRC, encoding="utf-8") as f:
         data.update(json.load(f))
+    # Округляем floating-point шум от Java суммирования (0.1+0.1+0.1=0.30000…)
+    # до 3 знаков — это покрывает точность tooltip-цен (минимум 0.005).
+    data = {k: round(v, 3) for k, v in data.items() if v is not None and v > 0}
 
     lines = [
         f"-- @version: {VERSION} — lib/prices: статичная таблица цен",
