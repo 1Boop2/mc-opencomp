@@ -53,7 +53,19 @@ local pim_proxy, pim_addr = pim.find()
 if not pim_proxy then
   io.stderr:write("PIM не найден\n"); return 1
 end
-local me_proxy, me_addr = me_lib.find()
+local me_r = me_lib.find_all()
+if me_r.primary then
+  local parts = {}
+  if me_r.controller_addr then
+    parts[#parts+1] = "controller " .. me_r.controller_addr:sub(1, 8)
+  end
+  if me_r.interface_addr then
+    parts[#parts+1] = "interface " .. me_r.interface_addr:sub(1, 8)
+  end
+  print("[shop] ME: " .. table.concat(parts, ", "))
+else
+  print("[shop] ME не найдена — режим без склада")
+end
 
 local gpu = component.gpu
 local screen_w, screen_h = gpu.getResolution()
