@@ -1,13 +1,15 @@
--- @version: 2026-05-14.10-banner — pull: GitHub script loader
--- Каждый pull тянет свежую копию (no-cache headers + random query),
--- парсит "-- @deps: foo, bar" и тянет указанные библиотеки тоже свежими.
+-- @version: 2026-05-14.11-deps-cache — pull: GitHub script loader
+-- programs/* всегда тянутся свежими. lib/* — install-once: если файл
+-- уже есть, повторно не качаем (для тяжёлых таблиц вроде prices.lua).
+-- Обновить либу: pull lib/<name> явно, или pull --refresh-deps <prog>.
 --
 -- Usage:
---   pull <name> [args...]   programs/<name>.lua: свежее, +deps, запустить
---   pull lib/<name>         lib/<name>.lua в /lib/ (всегда свежее)
---   pull --self-update      обновить сам pull.lua в /bin
---   pull --version          версия pull
---   pull --list             что лежит в кеше
+--   pull <name> [args...]    programs/<name>.lua: свежее, deps если нет, run
+--   pull --refresh-deps <n>  то же, но deps тянутся свежими (даже если есть)
+--   pull lib/<name>          lib/<name>.lua в /lib/ (всегда свежее)
+--   pull --self-update       обновить сам pull.lua в /bin
+--   pull --version           версия pull
+--   pull --list              что лежит в кеше
 
 local component = require("component")
 local internet  = require("internet")
@@ -16,7 +18,7 @@ local shell     = require("shell")
 local computer  = require("computer")
 
 -- === Конфигурация ===
-local VERSION = "2026-05-14.10-banner"
+local VERSION = "2026-05-14.11-deps-cache"
 local REPO   = "1Boop2/mc-opencomp"
 local BRANCH = "main"
 local CACHE  = "/home/.pull_cache/"
@@ -137,11 +139,12 @@ end
 if #args == 0 then
   io.stderr:write([[
 Usage:
-  pull <name> [args...]   programs/<name>.lua: свежее, +deps, запустить
-  pull lib/<name>         lib/<name>.lua в /lib/ (всегда свежее)
-  pull --self-update      обновить сам pull.lua в /bin
-  pull --version          версия pull
-  pull --list             что в кеше
+  pull <name> [args...]    programs/<name>.lua: свежее, deps если нет, run
+  pull --refresh-deps <n>  то же, но deps перетянуть свежими
+  pull lib/<name>          lib/<name>.lua в /lib/ (всегда свежее)
+  pull --self-update       обновить сам pull.lua в /bin
+  pull --version           версия pull
+  pull --list              что в кеше
 ]])
   return 1
 end
@@ -171,13 +174,21 @@ if not body then
   return 1
 end
 
--- ── для программ — подтянуть deps свежими ─────────────────
+-- ── для программ — подтянуть отсутствующие deps ──────────
+-- (install-once: уже стоящие либы не перекачиваем, чтобы не качать
+-- большие prices.lua / display_names.lua при каждом запуске)
 if not is_lib then
+  local refresh = opts["refresh-deps"]
   for _, dep in ipairs(parse_deps(body)) do
     local dep_file = dep:match("%.lua$") and dep or (dep .. ".lua")
-    local _, derr = fetch_and_save("lib/", dep_file, LIBDIR .. dep_file)
-    if derr then
-      io.stderr:write(string.format("[pull dep %s] %s\n", dep, derr))
+    local dep_target = LIBDIR .. dep_file
+    if refresh or not fs.exists(dep_target) then
+      local _, derr = fetch_and_save("lib/", dep_file, dep_target)
+      if derr then
+        io.stderr:write(string.format("[pull dep %s] %s\n", dep, derr))
+      end
+    else
+      print("[pull dep] cached: " .. dep_target)
     end
   end
 
