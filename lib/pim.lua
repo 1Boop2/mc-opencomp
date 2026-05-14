@@ -6,6 +6,7 @@
 local component = require("component")
 
 local M = {}
+M._VERSION = "2026-05-14.5-pairs-methods"
 
 -- Известные имена типа компонента PIM в разных версиях OpenPeripheral.
 -- "pim" — короткое имя, которое видно через команду `components` в OpenOS.

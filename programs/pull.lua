@@ -59,6 +59,10 @@ local function write_file(path, body)
   if dir and dir ~= "" and not fs.exists(dir) then
     fs.makeDirectory(dir)
   end
+  -- В OpenOS io.open("w") иногда не truncates корректно — удаляем заранее.
+  if fs.exists(path) then
+    fs.remove(path)
+  end
   local f, err = io.open(path, "w")
   if not f then return nil, err end
   f:write(body)
@@ -164,6 +168,7 @@ if need_fetch then
       io.stderr:write("[pull] " .. tostring(werr) .. "\n")
       return 1
     end
+    print(string.format("[pull] saved %d bytes → %s", #body, target_path))
   end
 else
   print("[pull] cached: " .. target_path)

@@ -13,6 +13,7 @@ local term      = require("term")
 local shell     = require("shell")
 local sides     = require("sides")
 
+package.loaded.pim = nil   -- сброс кеша require, чтобы взять свежую версию
 local ok_lib, pim = pcall(require, "pim")
 if not ok_lib then
   io.stderr:write("Не найден /lib/pim.lua. Установи: pull lib/pim\n")

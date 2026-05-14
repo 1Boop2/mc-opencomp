@@ -56,10 +56,12 @@ else
 end
 
 print("\n=== Проверка lib/pim.find() ===")
+package.loaded.pim = nil   -- сброс кеша require, чтобы взять свежую версию
 local ok, pim = pcall(require, "pim")
 if not ok then
   print("require('pim') failed: " .. tostring(pim))
 else
+  print("pim._VERSION = " .. tostring(pim._VERSION))
   local proxy, addr, ptype = pim.find()
   if proxy then
     print(string.format("OK: тип=%s addr=%s", ptype, addr:sub(1, 8)))
