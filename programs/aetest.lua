@@ -48,6 +48,7 @@ end
 
 -- ── methods ───────────────────────────────────────────────────
 if cmd == "methods" then
+  local COLS, COL_W = 3, 26
   for label, addr in pairs({
     controller = me_r.controller_addr,
     interface  = me_r.interface_addr,
@@ -59,7 +60,14 @@ if cmd == "methods" then
         local names = {}
         for n in pairs(methods) do names[#names+1] = n end
         table.sort(names)
-        for _, n in ipairs(names) do p("  " .. n) end
+        local row = ""
+        for i, n in ipairs(names) do
+          if #n > COL_W - 1 then n = n:sub(1, COL_W - 2) .. "…" end
+          row = row .. string.format("%-" .. COL_W .. "s", n)
+          if i % COLS == 0 then p(row); row = "" end
+        end
+        if row ~= "" then p(row) end
+        p(string.format("(%d methods)", #names))
       end
     end
   end
