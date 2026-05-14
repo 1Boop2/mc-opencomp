@@ -8,4 +8,10 @@ pluginManagement {
     }
 }
 
+// Auto-resolver скачивает недостающие JDK-версии (например JDK 8 для
+// компиляции patched MC) с foojay.io автоматически.
+plugins {
+    id 'org.gradle.toolchains.foojay-resolver-convention' version '0.8.0'
+}
+
 rootProject.name = 'PriceDump'
