@@ -1,11 +1,10 @@
 -- inventory — мониторинг и управление инвентарём игрока через PIM.
+-- @deps: pim
 -- Usage:
 --   pull inventory                              показать инвентарь один раз (текст)
---   pull inventory watch                        следить непрерывно (GPU-сетка, 0.5 сек)
+--   pull inventory watch                        следить непрерывно (GPU-сетка)
 --   pull inventory pull <side> <slot> [qty]     забрать из PIM в инвентарь со стороны
 --   pull inventory push <side> <slot> [qty]     положить в PIM из инвентаря со стороны
---
--- Требует /lib/pim.lua — поставь через:  pull lib/pim
 
 local component = require("component")
 local event     = require("event")

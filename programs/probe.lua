@@ -1,6 +1,7 @@
 -- probe — диагностический дамп: компоненты с методами (через component.methods),
 -- проверка установленной версии lib/pim.lua и pim.find().
--- Запуск:  pull --update probe && pull probe
+-- @deps: pim
+-- Запуск:  pull probe
 
 local component = require("component")
 local fs = require("filesystem")
