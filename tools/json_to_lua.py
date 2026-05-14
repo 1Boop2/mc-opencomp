@@ -9,14 +9,21 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(ROOT, "prices.json")
+COMPUTED = os.path.join(ROOT, "computed_prices.json")
 DST = os.path.join(ROOT, "lib", "prices.lua")
 
 VERSION = "2026-05-14-generated"
 
 
 def main():
+    data = {}
+    # computed подгружаем первым, prices.json (tooltip) перезаписывает —
+    # tooltip имеет приоритет над расчётом
+    if os.path.exists(COMPUTED):
+        with open(COMPUTED, encoding="utf-8") as f:
+            data.update(json.load(f))
     with open(SRC, encoding="utf-8") as f:
-        data = json.load(f)
+        data.update(json.load(f))
 
     lines = [
         f"-- @version: {VERSION} — lib/prices: статичная таблица цен",

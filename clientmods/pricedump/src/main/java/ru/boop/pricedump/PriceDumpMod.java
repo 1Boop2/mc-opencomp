@@ -10,11 +10,19 @@ import net.minecraft.command.CommandBase;
 import net.minecraft.command.ICommandSender;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
+import net.minecraft.item.crafting.CraftingManager;
+import net.minecraft.item.crafting.FurnaceRecipes;
+import net.minecraft.item.crafting.IRecipe;
+import net.minecraft.item.crafting.ShapedRecipes;
+import net.minecraft.item.crafting.ShapelessRecipes;
 import net.minecraft.util.ChatComponentText;
 import net.minecraftforge.client.ClientCommandHandler;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.entity.EntityJoinWorldEvent;
 import net.minecraftforge.event.entity.player.ItemTooltipEvent;
+import net.minecraftforge.oredict.OreDictionary;
+import net.minecraftforge.oredict.ShapedOreRecipe;
+import net.minecraftforge.oredict.ShapelessOreRecipe;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -185,11 +193,28 @@ public class PriceDumpMod {
                 if (dbg != null) try { dbg.close(); } catch (IOException ignored) {}
             }
 
+            writeJson(outFile, result, sender);
+
+            // Дополнительно — расчёт цен по рецептам для предметов без tooltip-цены
+            Map<String, Double> computed = computeFromRecipes(result);
+            File computedFile = new File(mc.mcDataDir, "computed_prices.json");
+            writeJson(computedFile, computed, sender);
+
+            sender.addChatMessage(new ChatComponentText(String.format(
+                "[PriceDump] tooltip: %d/%d → %s | computed: %d → %s | sample → %s",
+                hits, scanned, outFile.getName(),
+                computed.size(), computedFile.getName(), debugFile.getName()
+            )));
+        }
+
+        // ── Запись Map в JSON-файл ────────────────────────────────────
+        private static void writeJson(File f, Map<String, Double> data,
+                                      ICommandSender sender) {
             try (Writer w = new OutputStreamWriter(
-                    new FileOutputStream(outFile), StandardCharsets.UTF_8)) {
+                    new FileOutputStream(f), StandardCharsets.UTF_8)) {
                 w.write("{\n");
-                int i = 0, size = result.size();
-                for (Map.Entry<String, Double> e : result.entrySet()) {
+                int i = 0, size = data.size();
+                for (Map.Entry<String, Double> e : data.entrySet()) {
                     String k = e.getKey().replace("\\", "\\\\").replace("\"", "\\\"");
                     w.write("  \"" + k + "\": " + e.getValue());
                     if (++i < size) w.write(",");
@@ -198,14 +223,193 @@ public class PriceDumpMod {
                 w.write("}\n");
             } catch (IOException ex) {
                 sender.addChatMessage(new ChatComponentText(
-                    "[PriceDump] write failed: " + ex.getMessage()));
-                return;
+                    "[PriceDump] write failed for " + f.getName() + ": " + ex.getMessage()));
+            }
+        }
+
+        // ── Ключ ItemStack → "modid:item:meta" ──────────────────────
+        private static String stackKey(ItemStack s) {
+            Object name = Item.itemRegistry.getNameForObject(s.getItem());
+            if (name == null) return null;
+            return name + ":" + s.getItemDamage();
+        }
+
+        // ── Найти цену стака в known/computed, или через OreDict-альтернативы
+        private static Double priceOf(ItemStack stack,
+                                      Map<String, Double> known,
+                                      Map<String, Double> computed) {
+            if (stack == null || stack.getItem() == null) return null;
+            String key = stackKey(stack);
+            if (key == null) return null;
+
+            Double p = known.get(key);
+            if (p != null) return p;
+            p = computed.get(key);
+            if (p != null) return p;
+
+            // wildcard meta или meta!=0 — пробуем :0 fallback
+            if (stack.getItemDamage() != 0) {
+                Object name = Item.itemRegistry.getNameForObject(stack.getItem());
+                String key0 = name + ":0";
+                p = known.get(key0);
+                if (p != null) return p;
+                p = computed.get(key0);
+                if (p != null) return p;
             }
 
-            sender.addChatMessage(new ChatComponentText(String.format(
-                "[PriceDump] %d items with price out of %d scanned → %s | sample → %s",
-                hits, scanned, outFile.getName(), debugFile.getName()
-            )));
+            // OreDict — минимум среди альтернатив
+            try {
+                int[] oreIds = OreDictionary.getOreIDs(stack);
+                Double min = null;
+                for (int id : oreIds) {
+                    String oreName = OreDictionary.getOreName(id);
+                    for (ItemStack alt : OreDictionary.getOres(oreName)) {
+                        if (alt == null || alt.getItem() == null) continue;
+                        String altKey = stackKey(alt);
+                        if (altKey == null) continue;
+                        Double ap = known.get(altKey);
+                        if (ap == null) ap = computed.get(altKey);
+                        if (ap != null && (min == null || ap < min)) min = ap;
+                    }
+                }
+                return min;
+            } catch (Throwable t) {
+                return null;
+            }
+        }
+
+        // ── Достать ингредиенты из IRecipe всех известных типов ─────
+        @SuppressWarnings("unchecked")
+        private static List<ItemStack> extractIngredients(IRecipe r,
+                                                          Map<String, Double> known,
+                                                          Map<String, Double> computed) {
+            List<ItemStack> out = new ArrayList<>();
+            try {
+                if (r instanceof ShapedRecipes) {
+                    ItemStack[] items = ((ShapedRecipes) r).recipeItems;
+                    if (items != null) {
+                        for (ItemStack s : items) {
+                            if (s != null) out.add(s);
+                        }
+                    }
+                } else if (r instanceof ShapelessRecipes) {
+                    List<ItemStack> items = ((ShapelessRecipes) r).recipeItems;
+                    if (items != null) {
+                        for (ItemStack s : items) {
+                            if (s != null) out.add(s);
+                        }
+                    }
+                } else if (r instanceof ShapedOreRecipe) {
+                    Object[] input = ((ShapedOreRecipe) r).getInput();
+                    for (Object o : input) {
+                        ItemStack picked = pickOreAlt(o, known, computed);
+                        if (picked != null) out.add(picked);
+                    }
+                } else if (r instanceof ShapelessOreRecipe) {
+                    ArrayList<Object> input = ((ShapelessOreRecipe) r).getInput();
+                    for (Object o : input) {
+                        ItemStack picked = pickOreAlt(o, known, computed);
+                        if (picked != null) out.add(picked);
+                    }
+                } else {
+                    return null; // незнакомый тип рецепта
+                }
+            } catch (Throwable t) {
+                return null;
+            }
+            return out;
+        }
+
+        // Из OreDict-альтернативы выбрать ту, у которой уже есть цена (минимум),
+        // или первую попавшуюся ItemStack если ни у одной нет цены.
+        @SuppressWarnings("unchecked")
+        private static ItemStack pickOreAlt(Object o,
+                                            Map<String, Double> known,
+                                            Map<String, Double> computed) {
+            if (o == null) return null;
+            if (o instanceof ItemStack) return (ItemStack) o;
+            if (o instanceof List) {
+                List<ItemStack> alts = (List<ItemStack>) o;
+                if (alts.isEmpty()) return null;
+                ItemStack best = null;
+                Double bestP = null;
+                for (ItemStack alt : alts) {
+                    if (alt == null) continue;
+                    Double p = priceOf(alt, known, computed);
+                    if (p != null && (bestP == null || p < bestP)) {
+                        bestP = p;
+                        best = alt;
+                    }
+                }
+                return best != null ? best : alts.get(0);
+            }
+            return null;
+        }
+
+        // ── Главный проход — считаем цены через рецепты ───────────────
+        @SuppressWarnings("unchecked")
+        private static Map<String, Double> computeFromRecipes(Map<String, Double> known) {
+            Map<String, Double> computed = new LinkedHashMap<>();
+
+            List<IRecipe> recipes;
+            try {
+                recipes = CraftingManager.getInstance().getRecipeList();
+            } catch (Throwable t) {
+                return computed;
+            }
+
+            // Многопроходный алгоритм: пока в одном проходе хоть один
+            // новый предмет получает цену — продолжаем.
+            for (int pass = 0; pass < 20; pass++) {
+                boolean changed = false;
+                for (IRecipe r : recipes) {
+                    if (r == null) continue;
+                    ItemStack o;
+                    try { o = r.getRecipeOutput(); }
+                    catch (Throwable t) { continue; }
+                    if (o == null || o.getItem() == null || o.stackSize <= 0) continue;
+                    String key = stackKey(o);
+                    if (key == null) continue;
+                    if (known.containsKey(key) || computed.containsKey(key)) continue;
+
+                    List<ItemStack> ings = extractIngredients(r, known, computed);
+                    if (ings == null || ings.isEmpty()) continue;
+
+                    double total = 0;
+                    boolean ok = true;
+                    for (ItemStack ing : ings) {
+                        Double p = priceOf(ing, known, computed);
+                        if (p == null) { ok = false; break; }
+                        total += p * Math.max(1, ing.stackSize);
+                    }
+                    if (ok) {
+                        computed.put(key, total / o.stackSize);
+                        changed = true;
+                    }
+                }
+                if (!changed) break;
+            }
+
+            // FurnaceRecipes — переплавка: out.qty обычно 1, цена = цена input
+            try {
+                Map<ItemStack, ItemStack> smelting =
+                    (Map<ItemStack, ItemStack>) FurnaceRecipes.smelting().getSmeltingList();
+                for (Map.Entry<ItemStack, ItemStack> e : smelting.entrySet()) {
+                    ItemStack out = e.getValue();
+                    if (out == null || out.getItem() == null) continue;
+                    String key = stackKey(out);
+                    if (key == null) continue;
+                    if (known.containsKey(key) || computed.containsKey(key)) continue;
+                    Double p = priceOf(e.getKey(), known, computed);
+                    if (p != null && out.stackSize > 0) {
+                        computed.put(key, p / out.stackSize);
+                    }
+                }
+            } catch (Throwable t) {
+                FMLLog.warning("[PriceDump] smelting walk failed: " + t);
+            }
+
+            return computed;
         }
     }
 }
