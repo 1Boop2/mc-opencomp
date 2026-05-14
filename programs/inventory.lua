@@ -68,19 +68,26 @@ if cmd == "dump" then
   end
   show(string.format("getStackInSlot(%d)", slot), st)
 
-  -- 2) Wrapper-объект с advanced API: .all() / .keys() / .single(key)
+  -- 2) Wrapper-объект (userdata) с advanced API: .all() / .keys() / .single(key)
   local ok2, wrap = pcall(proxy.getStackInSlot, slot, true)
-  if ok2 and type(wrap) == "table" and type(wrap.all) == "function" then
-    local ok_keys, keys = pcall(wrap.keys)
-    if ok_keys then show("stack:keys()", keys) end
+  if ok2 and wrap then
+    -- wrap может быть userdata, не table — type-проверки тут бесполезны.
+    -- Просто пытаемся вызвать, через pcall ловим если метод отсутствует.
 
-    local ok_all, all = pcall(wrap.all)
-    if ok_all then show("stack:all()", all) end
+    local ok_keys, keys = pcall(function() return wrap.keys() end)
+    if ok_keys and keys then show("wrap.keys()", keys) end
 
-    if type(wrap.listMethods) == "function" then
-      local ok_lm, lm = pcall(wrap.listMethods)
-      if ok_lm then show("stack:listMethods()", lm) end
-    end
+    local ok_all, all = pcall(function() return wrap.all() end)
+    if ok_all and all then show("wrap.all()", all) end
+
+    local ok_basic, basic = pcall(function() return wrap.basic() end)
+    if ok_basic and basic then show("wrap.basic()", basic) end
+
+    local ok_lm, lm = pcall(function() return wrap.listMethods() end)
+    if ok_lm and lm then show("wrap.listMethods()", lm) end
+
+    local ok_ls, ls = pcall(function() return wrap.listSources() end)
+    if ok_ls and ls then show("wrap.listSources()", ls) end
   end
 
   -- 3) Методы самого PIM-компонента — listMethods и getAdvancedMethodsData
