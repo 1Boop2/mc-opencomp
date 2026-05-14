@@ -13,6 +13,7 @@ local fs        = require("filesystem")
 local shell     = require("shell")
 
 -- === Конфигурация ===
+local VERSION = "2026-05-14.4-fresh-default-cachebust"
 local REPO   = "1Boop2/mc-opencomp"
 local BRANCH = "main"
 local CACHE  = "/home/.pull_cache/"
@@ -20,10 +21,14 @@ local LIBDIR = "/lib/"
 local SELF   = "/bin/pull.lua"
 -- =====================
 
+-- Добавляем ?t=<uptime>, чтобы обойти CDN-кеш GitHub и любые промежуточные
+-- кеши. raw.githubusercontent.com игнорирует query string, а CDN считает
+-- URL уникальным и тянет свежее.
 local function url_for(subdir, name)
   return string.format(
-    "https://raw.githubusercontent.com/%s/%s/%s%s",
-    REPO, BRANCH, subdir, name
+    "https://raw.githubusercontent.com/%s/%s/%s%s?t=%d",
+    REPO, BRANCH, subdir, name,
+    math.floor(require("computer").uptime() * 1000)
   )
 end
 
@@ -62,6 +67,13 @@ local function write_file(path, body)
 end
 
 local args, opts = shell.parse(...)
+
+-- ── --version ─────────────────────────────────────────────
+if opts.version then
+  print("pull " .. VERSION)
+  print("REPO=" .. REPO .. " BRANCH=" .. BRANCH)
+  return 0
+end
 
 -- ── --self-update ─────────────────────────────────────────
 if opts["self-update"] then
