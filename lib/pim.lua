@@ -6,10 +6,13 @@ local component = require("component")
 
 local M = {}
 
--- Известные имена типа компонента PIM в разных версиях OpenPeripheral
+-- Известные имена типа компонента PIM в разных версиях OpenPeripheral.
+-- "pim" — короткое имя, которое видно через команду `components` в OpenOS.
 local KNOWN_TYPES = {
+  "pim",
   "openperipheral_manager",
   "openperipheral_inventory_manager",
+  "openperipheral_inventoryManager",
   "inventory_manager",
   "manager",
 }
