@@ -17,7 +17,7 @@ local shell     = require("shell")
 local computer  = require("computer")
 
 -- === Конфигурация ===
-local VERSION = "2026-05-14.8-verify-write"
+local VERSION = "2026-05-14.9-no-cache-headers"
 local REPO   = "1Boop2/mc-opencomp"
 local BRANCH = "main"
 local CACHE  = "/home/.pull_cache/"
@@ -25,19 +25,28 @@ local LIBDIR = "/lib/"
 local SELF   = "/bin/pull.lua"
 -- =====================
 
+math.randomseed(math.floor(computer.uptime() * 1000) + os.time())
+
 local function url_for(subdir, name)
   return string.format(
-    "https://raw.githubusercontent.com/%s/%s/%s%s?t=%d",
+    "https://raw.githubusercontent.com/%s/%s/%s%s?t=%d.%d",
     REPO, BRANCH, subdir, name,
-    math.floor(computer.uptime() * 1000)
+    math.floor(computer.uptime() * 1000),
+    math.random(0, 2^30)
   )
 end
+
+local NO_CACHE_HEADERS = {
+  ["Cache-Control"] = "no-cache, no-store, must-revalidate",
+  ["Pragma"]        = "no-cache",
+  ["Expires"]       = "0",
+}
 
 local function fetch(url)
   if not component.isAvailable("internet") then
     return nil, "нет internet card"
   end
-  local handle, err = internet.request(url)
+  local handle, err = internet.request(url, nil, NO_CACHE_HEADERS)
   if not handle then return nil, "request: " .. tostring(err) end
   local body = ""
   for chunk in handle do body = body .. chunk end
@@ -83,7 +92,9 @@ local function fetch_and_save(subdir, name, target_path)
   if not body then return nil, err end
   local ok, werr = write_file(target_path, body)
   if not ok then return nil, werr end
-  print(string.format("[pull] saved %d bytes → %s", #body, target_path))
+  -- Печатаем первые 60 символов — сразу видно какая версия скачалась
+  local head = body:sub(1, 60):gsub("[\r\n]", " ")
+  print(string.format("[pull] saved %d B → %s | head: %s", #body, target_path, head))
   return body
 end
 
