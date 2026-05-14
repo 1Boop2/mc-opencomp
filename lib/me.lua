@@ -68,39 +68,32 @@ function M.snapshot(proxy)
 end
 
 --- Запросить count предметов на side+slot.
---- Если передан r (результат find_all), пробуем сначала interface, потом
---- controller. Иначе работаем с одним proxy.
+--- В этой версии AE2 правильный метод — interface.exportItem(filter, side, slot).
+--- Filter: {name=, damage=} (size игнорируется в exportItem — count приходит
+--- 4-м аргументом или внутрь size — пробуем оба варианта).
 function M.request(r_or_proxy, id, meta, count, side, slot)
-  local proxies = {}
+  local interface
   if type(r_or_proxy) == "table" and r_or_proxy.primary then
-    if r_or_proxy.interface then proxies[#proxies + 1] = r_or_proxy.interface end
-    if r_or_proxy.controller then proxies[#proxies + 1] = r_or_proxy.controller end
+    interface = r_or_proxy.interface
   else
-    proxies[#proxies + 1] = r_or_proxy
+    interface = r_or_proxy
+  end
+  if not interface or type(interface.exportItem) ~= "function" then
+    return false, "нет exportItem (нужен me_interface)"
   end
 
-  local last_err = "no ME proxy"
-  for _, proxy in ipairs(proxies) do
-    if proxy then
-      if type(proxy.requestItems) == "function" then
-        local ok, moved = pcall(proxy.requestItems,
-          { name = id, damage = meta, size = count }, side, slot)
-        if ok and tonumber(moved) and tonumber(moved) > 0 then
-          return true, moved
-        end
-        last_err = "requestItems: " .. tostring(moved)
-      end
-      if type(proxy.exportItem) == "function" then
-        local ok, moved = pcall(proxy.exportItem,
-          { name = id, damage = meta, size = count }, side, slot)
-        if ok and tonumber(moved) and tonumber(moved) > 0 then
-          return true, moved
-        end
-        last_err = "exportItem: " .. tostring(moved)
-      end
-    end
+  local filter = { name = id, damage = meta, size = count }
+  -- Пробуем сначала с size в фильтре (как в большинстве версий AE2 API)
+  local ok, moved = pcall(interface.exportItem, filter, side, slot)
+  if ok and tonumber(moved) and tonumber(moved) > 0 then
+    return true, moved
   end
-  return false, last_err
+  -- Fallback: count вторым аргументом
+  local ok2, moved2 = pcall(interface.exportItem, filter, count, side, slot)
+  if ok2 and tonumber(moved2) and tonumber(moved2) > 0 then
+    return true, moved2
+  end
+  return false, "exportItem moved=0 (нет в сети или плохая сторона)"
 end
 
 return M

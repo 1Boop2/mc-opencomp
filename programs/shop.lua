@@ -325,7 +325,7 @@ local function sell(item, n)
   n = n or qty_select
   local left = n
   local inv = pim.inventory(pim_proxy) or {}
-  local sold = 0
+  local sold, found_slots, last_err = 0, 0, nil
   for i = 1, #inv do
     if left <= 0 then break end
     local st = inv[i]
@@ -333,6 +333,7 @@ local function sell(item, n)
       local id = st.id or st.raw_name or st.name
       local meta = math.floor(tonumber(st.dmg) or 0)
       if id == item.id and meta == item.meta then
+        found_slots = found_slots + 1
         local q = math.min(pim.qty(st), left)
         local ok, moved = pim.pull(pim_proxy, STORAGE_SIDE, i, q)
         local m = tonumber(moved) or 0
@@ -340,6 +341,7 @@ local function sell(item, n)
           sold = sold + m
           left = left - m
         else
+          last_err = "pim.pull moved=" .. tostring(moved)
           break
         end
       end
@@ -350,6 +352,9 @@ local function sell(item, n)
     save_state(state)
     status_msg = string.format("SELL %s × %d = +$%.2f",
                                display_of(item), sold, item.price * sold)
+  elseif found_slots > 0 then
+    status_msg = "В инвентаре есть, но не переместить — " ..
+                 (last_err or "сторона " .. tostring(STORAGE_SIDE) .. " не принимает")
   else
     status_msg = "Нет в инвентаре"
   end
