@@ -148,7 +148,7 @@ local function draw_cell(x, y, slot, st)
   end
 end
 
-local function draw_grid()
+local function draw_grid(inv, armor)
   local w, h = gpu.getResolution()
 
   gpu.setBackground(0x000000)
@@ -170,8 +170,7 @@ local function draw_grid()
   for row = 0, GRID_ROWS_MAIN - 1 do
     for col = 0, GRID_COLS - 1 do
       local slot = 10 + row * GRID_COLS + col
-      draw_cell(x0 + col * CELL_W, y0 + row * CELL_H,
-                slot, pim.stack(proxy, slot))
+      draw_cell(x0 + col * CELL_W, y0 + row * CELL_H, slot, inv and inv[slot])
     end
   end
 
@@ -179,11 +178,10 @@ local function draw_grid()
   local hot_y = y0 + GRID_ROWS_MAIN * CELL_H + 1
   for col = 0, GRID_COLS - 1 do
     local slot = 1 + col
-    draw_cell(x0 + col * CELL_W, hot_y, slot, pim.stack(proxy, slot))
+    draw_cell(x0 + col * CELL_W, hot_y, slot, inv and inv[slot])
   end
 
   -- armor сбоку
-  local armor = pim.armor(proxy)
   if armor then
     local ax = x0 + GRID_COLS * CELL_W + 2
     gpu.setBackground(0x000000)
@@ -201,10 +199,41 @@ local function draw_grid()
   gpu.setForeground(0xFFFFFF)
 end
 
+-- Снимок инвентаря: одна строка-отпечаток для быстрого сравнения "изменилось/нет"
+local function snapshot(inv, armor)
+  local parts = {}
+  if inv then
+    for i = 1, #inv do
+      local st = inv[i]
+      if st then
+        parts[#parts + 1] =
+          string.format("i%d:%s:%d", i, pim.name(st), pim.qty(st))
+      end
+    end
+  end
+  if armor then
+    for i = 1, #armor do
+      local st = armor[i]
+      if st then
+        parts[#parts + 1] =
+          string.format("a%d:%s:%d", i, pim.name(st), pim.qty(st))
+      end
+    end
+  end
+  return table.concat(parts, "|")
+end
+
 if cmd == "watch" then
+  local last_snap = nil
   while true do
-    draw_grid()
-    local ev = event.pull(0.5)
+    local inv = pim.inventory(proxy)
+    local armor = pim.armor(proxy)
+    local snap = snapshot(inv, armor)
+    if snap ~= last_snap then
+      draw_grid(inv, armor)
+      last_snap = snap
+    end
+    local ev = event.pull(0.1)
     if ev == "interrupted" then
       term.clear()
       print("bye.")
