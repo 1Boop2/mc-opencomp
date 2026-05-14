@@ -17,7 +17,7 @@ local shell     = require("shell")
 local computer  = require("computer")
 
 -- === Конфигурация ===
-local VERSION = "2026-05-14.7-always-fresh-deps"
+local VERSION = "2026-05-14.8-verify-write"
 local REPO   = "1Boop2/mc-opencomp"
 local BRANCH = "main"
 local CACHE  = "/home/.pull_cache/"
@@ -51,12 +51,27 @@ local function write_file(path, body)
   if dir and dir ~= "" and not fs.exists(dir) then
     fs.makeDirectory(dir)
   end
-  -- В OpenOS io.open("w") иногда не truncates корректно — удаляем заранее.
-  if fs.exists(path) then fs.remove(path) end
+  if fs.exists(path) then
+    print("[pull] rm " .. path)
+    local ok_r, rerr = fs.remove(path)
+    if not ok_r then
+      return nil, "fs.remove failed: " .. tostring(rerr)
+    end
+  end
   local f, err = io.open(path, "w")
   if not f then return nil, err end
   f:write(body)
   f:close()
+  -- Verify: прочитать обратно, убедиться что запись полная
+  local rf = io.open(path, "r")
+  if rf then
+    local back = rf:read("*a")
+    rf:close()
+    if back ~= body then
+      return nil, string.format(
+        "verify failed: wrote %d, got back %d", #body, back and #back or 0)
+    end
+  end
   return true
 end
 
