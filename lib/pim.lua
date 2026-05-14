@@ -1,12 +1,12 @@
--- lib/pim.lua — обёртка над Player Inventory Manager (OpenPeripheral-Addons).
+-- @version: 2026-05-14.10-banner — lib/pim: PIM wrapper
+-- Обёртка над Player Inventory Manager (OpenPeripheral-Addons).
 -- Делает: автопоиск компонента, защитные вызовы, нормализация полей стака
--- (qty/size/count) и имён методов между версиями. Версии PIM сильно различаются:
--- одни выставляют getOwner/getArmor, другие — только базовый инвентарь.
+-- (qty/size/count) и имён методов между версиями.
 
 local component = require("component")
 
 local M = {}
-M._VERSION = "2026-05-14.6-no-owner-heuristic"
+M._VERSION = "2026-05-14.10-banner"
 
 -- Известные имена типа компонента PIM в разных версиях OpenPeripheral.
 -- "pim" — короткое имя, которое видно через команду `components` в OpenOS.

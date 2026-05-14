@@ -1,7 +1,6 @@
--- pull — загрузчик скриптов и библиотек с публичного GitHub-репозитория.
--- Каждый pull тянет свежую копию (минуя CDN-кеш через ?t=).
--- Программа может объявить зависимости в комментарии:  -- @deps: pim, foo
--- Эти библиотеки тоже будут скачаны свежими перед запуском.
+-- @version: 2026-05-14.10-banner — pull: GitHub script loader
+-- Каждый pull тянет свежую копию (no-cache headers + random query),
+-- парсит "-- @deps: foo, bar" и тянет указанные библиотеки тоже свежими.
 --
 -- Usage:
 --   pull <name> [args...]   programs/<name>.lua: свежее, +deps, запустить
@@ -17,7 +16,7 @@ local shell     = require("shell")
 local computer  = require("computer")
 
 -- === Конфигурация ===
-local VERSION = "2026-05-14.9-no-cache-headers"
+local VERSION = "2026-05-14.10-banner"
 local REPO   = "1Boop2/mc-opencomp"
 local BRANCH = "main"
 local CACHE  = "/home/.pull_cache/"
@@ -112,6 +111,7 @@ end
 
 -- ── Main ──────────────────────────────────────────────────────
 local args, opts = shell.parse(...)
+print("[pull " .. VERSION .. "]")
 
 if opts.version then
   print("pull " .. VERSION)

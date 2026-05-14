@@ -1,11 +1,12 @@
--- probe — диагностический дамп: компоненты с методами (через component.methods),
--- проверка установленной версии lib/pim.lua и pim.find().
+-- @version: 2026-05-14.10-banner — probe: component diagnostic
 -- @deps: pim
 -- Запуск:  pull probe
 
 local component = require("component")
 local fs = require("filesystem")
 
+local VERSION = "2026-05-14.10-banner"
+print("[probe " .. VERSION .. "]")
 print("OS: " .. tostring(_OSVERSION or "(unknown)"))
 print()
 

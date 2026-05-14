@@ -1,4 +1,4 @@
--- inventory — мониторинг и управление инвентарём игрока через PIM.
+-- @version: 2026-05-14.10-banner — inventory: PIM viewer + transfer
 -- @deps: pim
 -- Usage:
 --   pull inventory                              показать инвентарь один раз (текст)
@@ -13,12 +13,16 @@ local term      = require("term")
 local shell     = require("shell")
 local sides     = require("sides")
 
+local VERSION = "2026-05-14.10-banner"
+
 package.loaded.pim = nil   -- сброс кеша require, чтобы взять свежую версию
 local ok_lib, pim = pcall(require, "pim")
 if not ok_lib then
   io.stderr:write("Не найден /lib/pim.lua. Установи: pull lib/pim\n")
   return 1
 end
+
+print(string.format("[inventory %s | pim %s]", VERSION, pim._VERSION or "?"))
 
 local args, opts = shell.parse(...)
 
