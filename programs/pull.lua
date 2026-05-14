@@ -1,9 +1,10 @@
--- pull — загрузчик скриптов с публичного GitHub-репозитория.
+-- pull — загрузчик скриптов и библиотек с публичного GitHub-репозитория.
 -- Usage:
---   pull <name> [args...]    скачать (или из кеша) и запустить
---   pull --update <name>     принудительно обновить из сети
---   pull --list              что лежит в кеше
---   pull --self-update       обновить сам pull.lua в /bin
+--   pull <name> [args...]      скачать (или из кеша) programs/<name>.lua и запустить
+--   pull lib/<name>            скачать lib/<name>.lua в /lib/ (не запускать)
+--   pull --update <name>       принудительно обновить (работает и для lib)
+--   pull --list                что лежит в кеше programs
+--   pull --self-update         обновить сам pull.lua в /bin
 
 local component = require("component")
 local internet  = require("internet")
@@ -13,15 +14,15 @@ local shell     = require("shell")
 -- === Конфигурация ===
 local REPO   = "1Boop2/mc-opencomp"
 local BRANCH = "main"
-local PREFIX = "programs/"        -- путь внутри репо до Lua-скриптов
 local CACHE  = "/home/.pull_cache/"
+local LIBDIR = "/lib/"
 local SELF   = "/bin/pull.lua"
 -- =====================
 
-local function url_for(name)
+local function url_for(subdir, name)
   return string.format(
     "https://raw.githubusercontent.com/%s/%s/%s%s",
-    REPO, BRANCH, PREFIX, name
+    REPO, BRANCH, subdir, name
   )
 end
 
@@ -40,7 +41,7 @@ local function fetch(url)
   if #body == 0 then
     return nil, "пустой ответ"
   end
-  -- GitHub raw на 404 отдаёт "404: Not Found"
+  -- GitHub raw на 404 отдаёт текст "404: Not Found"
   if body:match("^404") then
     return nil, "404 Not Found: " .. url
   end
@@ -61,8 +62,9 @@ end
 
 local args, opts = shell.parse(...)
 
+-- ── --self-update ─────────────────────────────────────────
 if opts["self-update"] then
-  local body, err = fetch(url_for("pull.lua"))
+  local body, err = fetch(url_for("programs/", "pull.lua"))
   if not body then
     io.stderr:write("[pull] self-update: " .. err .. "\n")
     return 1
@@ -76,6 +78,7 @@ if opts["self-update"] then
   return 0
 end
 
+-- ── --list ────────────────────────────────────────────────
 if opts.list then
   if not fs.exists(CACHE) then
     print("(кеш пуст)")
@@ -90,7 +93,8 @@ end
 if #args == 0 then
   io.stderr:write([[
 Usage:
-  pull <name> [args...]   скачать (или из кеша) и запустить
+  pull <name> [args...]   скачать (или из кеша) programs/<name>.lua и запустить
+  pull lib/<name>         скачать lib/<name>.lua в /lib/ (не запускать)
   pull --update <name>    принудительно обновить
   pull --list             что в кеше
   pull --self-update      обновить сам pull.lua в /bin
@@ -98,32 +102,55 @@ Usage:
   return 1
 end
 
-local name = args[1]
+-- ── разбор имени: lib/* идёт в /lib/, остальное — в кеш ──
+local raw_name = args[1]
+local is_lib = false
+local name = raw_name
+if name:sub(1, 4) == "lib/" then
+  is_lib = true
+  name = name:sub(5)
+end
+
 if not name:match("%.lua$") then
   name = name .. ".lua"
 end
 
-local cache_path = CACHE .. name
-local need_fetch = opts.update or not fs.exists(cache_path)
+local target_path, subdir
+if is_lib then
+  target_path = LIBDIR .. name
+  subdir = "lib/"
+else
+  target_path = CACHE .. name
+  subdir = "programs/"
+end
+
+local need_fetch = opts.update or not fs.exists(target_path)
 
 if need_fetch then
-  print("[pull] " .. url_for(name))
-  local body, err = fetch(url_for(name))
+  local url = url_for(subdir, name)
+  print("[pull] " .. url)
+  local body, err = fetch(url)
   if not body then
     io.stderr:write("[pull] " .. err .. "\n")
     return 1
   end
-  local ok, werr = write_file(cache_path, body)
+  local ok, werr = write_file(target_path, body)
   if not ok then
-    io.stderr:write("[pull] кеш: " .. tostring(werr) .. "\n")
+    io.stderr:write("[pull] " .. tostring(werr) .. "\n")
     return 1
   end
 else
-  print("[pull] cached: " .. cache_path .. "   (--update чтобы обновить)")
+  print("[pull] cached: " .. target_path .. "   (--update чтобы обновить)")
 end
 
--- Собираем команду для shell.execute: путь + остальные аргументы
-local cmd = cache_path
+-- ── библиотеки не запускаем ──────────────────────────────
+if is_lib then
+  print("[pull] installed: " .. target_path)
+  return 0
+end
+
+-- ── запуск программы ─────────────────────────────────────
+local cmd = target_path
 for i = 2, #args do
   cmd = cmd .. " " .. args[i]
 end

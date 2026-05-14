@@ -217,6 +217,42 @@ pim.getOwner()                              -- ник | nil
 - `direction` для `pullItem`/`pushItem` — сторона, куда смотрит соседний инвентарь (chest/контейнер). Использовать `require("sides")`.
 - Размер стака в результирующей таблице — `qty`, а не `count` (хотя в новых версиях может быть и `size`/`count`).
 
+#### PIM ↔ сундук / AE2 / другие хранилища
+
+PIM сам по себе **не знает** про AE2-сеть. Он работает только с **физическими** инвентарями, которые стоят с одной из 6 сторон PIM-блока. `direction` в `pullItem`/`pushItem` — это та самая сторона.
+
+**Сундук рядом:** поставь Chest (или Double Chest) вплотную к PIM, например с востока.
+```lua
+local sides = require("sides")
+-- из PIM[slot 10] → сундук на востоке
+pim.pullItem(sides.east, 10)
+-- из сундука → PIM[slot 10]
+pim.pushItem(sides.east, 10)
+```
+
+**AE2 ME-сеть:** поставь блок **ME Interface** вплотную к PIM. У ME Interface есть 9 буферных слотов, через которые сеть автоматически принимает (если что-то лежит в буфере, оно засасывается в сеть) и выдаёт (если настроены пресеты — буфер заполняется автоматически нужными предметами). С точки зрения PIM этот буфер — обычный инвентарь:
+```lua
+-- PIM[slot 10] → ME-сеть через ME Interface буфер
+pim.pullItem(sides.east, 10)
+-- Если на ME Interface настроен пресет «64 железа», после потребления
+-- буфер сам пополнится из сети — следующий push возьмёт из готовых 64.
+pim.pushItem(sides.east, 10)
+```
+
+**Прямой контроль над AE2** (например «дай мне 64 железа из сети сейчас»): нужен компонент `me_controller` или `me_interface`. Он появляется, если соответствующий блок AE2 подключён к компьютеру через **Adapter Block** OpenComputers или просто стоит рядом.
+```lua
+local me = component.me_controller
+-- что есть в сети
+local items = me.getItemsInNetwork({ name = "minecraft:iron_ingot" })
+-- → таблица стаков с qty в сети
+-- заказать 64 железа на сторону east, в слот 1 этого внешнего инвентаря
+me.requestItems({ name = "minecraft:iron_ingot", count = 64 }, sides.east, 1)
+```
+
+Точные имена методов и сигнатуры зависят от версии AE2 — сверять через `component.methods(addr)` и `component.doc(addr, method)` в игре.
+
+**Другие модовые хранилища** (Refined Storage, IronChests, AE drives и т.п.) — большинство выставляются как inventory-провайдеры и работают со стороны PIM как обычные сундуки. Если мод не выставляет inventory интерфейс — нужен Adapter Block и работа через специфичный API мода.
+
 ### Другие блоки OpenPeripheral-Addons
 
 - **Sensor** — сканирование сущностей (`getPlayers`, `getMobIds`, `getPlayerByName`, `getPlayerByUUID`).
