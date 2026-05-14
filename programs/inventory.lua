@@ -1,5 +1,5 @@
--- @version: 2026-05-14.10-banner — inventory: PIM viewer + transfer
--- @deps: pim
+-- @version: 2026-05-14.11-prices — inventory: PIM viewer + prices
+-- @deps: pim, prices
 -- Usage:
 --   pull inventory                              показать инвентарь один раз (текст)
 --   pull inventory watch                        следить непрерывно (GPU-сетка)
@@ -13,16 +13,21 @@ local term      = require("term")
 local shell     = require("shell")
 local sides     = require("sides")
 
-local VERSION = "2026-05-14.10-banner"
+local VERSION = "2026-05-14.11-prices"
 
-package.loaded.pim = nil   -- сброс кеша require, чтобы взять свежую версию
-local ok_lib, pim = pcall(require, "pim")
-if not ok_lib then
+package.loaded.pim = nil
+package.loaded.prices = nil
+local ok_pim, pim = pcall(require, "pim")
+if not ok_pim then
   io.stderr:write("Не найден /lib/pim.lua. Установи: pull lib/pim\n")
   return 1
 end
+local ok_pr, prices = pcall(require, "prices")
+if not ok_pr then prices = nil end   -- prices опционален
 
-print(string.format("[inventory %s | pim %s]", VERSION, pim._VERSION or "?"))
+print(string.format("[inventory %s | pim %s%s]", VERSION, pim._VERSION or "?",
+  prices and (" | prices " .. (prices._VERSION or "?") ..
+              " (" .. prices.count() .. " items)") or ""))
 
 local args, opts = shell.parse(...)
 
@@ -141,6 +146,14 @@ local function truncate(s, n)
   return s:sub(1, n - 1) .. "…"
 end
 
+-- Возвращает (цена_за_стак, цена_за_единицу) или (nil, nil)
+local function stack_value(st)
+  if not prices then return nil, nil end
+  local p = prices.for_stack(st)
+  if not p then return nil, nil end
+  return p * pim.qty(st), p
+end
+
 -- ── текстовый дамп ────────────────────────────────────────────
 local function draw_text()
   io.write("\n")
@@ -160,14 +173,23 @@ local function draw_text()
     print("Inventory: <ошибка чтения>")
     return
   end
-  local nonempty = 0
+  local nonempty, total = 0, 0
   for i = 1, size do if inv[i] then nonempty = nonempty + 1 end end
   print(string.format("Inventory (%d/%d занято):", nonempty, size))
   for i = 1, size do
     local st = inv[i]
     if st then
-      print(string.format("  %2d: %3d × %s", i, pim.qty(st), pim.name(st)))
+      local val, unit = stack_value(st)
+      if val then total = total + val end
+      local price_str = unit
+        and string.format("  $%.2f×%d=$%.2f", unit, pim.qty(st), val)
+        or  "  (no price)"
+      print(string.format("  %2d: %3d × %-30s%s",
+                          i, pim.qty(st), pim.name(st), price_str))
     end
+  end
+  if prices then
+    print(string.format("Total: $%.2f", total))
   end
 end
 
@@ -227,6 +249,17 @@ local function draw_grid(inv, armor)
   local owner = pim.owner(proxy)
   local title = "PIM " .. addr:sub(1, 8) ..
                 (owner and ("  (" .. owner .. ")") or "")
+  -- Общая стоимость инвентаря
+  local total = 0
+  if prices and inv then
+    for i = 1, #inv do
+      local v = stack_value(inv[i])
+      if v then total = total + v end
+    end
+  end
+  if prices then
+    title = title .. string.format("   Total: $%.2f", total)
+  end
   gpu.set(2, 1, title)
   gpu.setForeground(0x666666)
   gpu.set(2, 2, "watch — Ctrl+Alt+C выход")
