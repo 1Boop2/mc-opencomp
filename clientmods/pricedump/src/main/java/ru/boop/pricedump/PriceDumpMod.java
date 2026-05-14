@@ -14,6 +14,7 @@ import net.minecraft.util.ChatComponentText;
 import net.minecraftforge.client.ClientCommandHandler;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.entity.EntityJoinWorldEvent;
+import net.minecraftforge.event.entity.player.ItemTooltipEvent;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -76,9 +77,13 @@ public class PriceDumpMod {
 
     public static class DumpCommand extends CommandBase {
 
+        // Гибкая регулярка: терпит цветовые §-коды (которые удаляем заранее),
+        // переменные пробелы, точку или запятую как десятичный разделитель,
+        // опциональный пробел перед "$".
         private static final Pattern PRICE_RX = Pattern.compile(
-            "Минимальная цена:\\s*([0-9]+(?:\\.[0-9]+)?)\\s*\\$"
+            "Минимальная\\s+цена\\s*:\\s*([0-9]+(?:[.,][0-9]+)?)\\s*\\$"
         );
+        private static final Pattern COLOR_RX = Pattern.compile("§[0-9a-fk-or]");
 
         @Override
         public String getCommandName() {
@@ -100,51 +105,84 @@ public class PriceDumpMod {
             return true;
         }
 
+        // Удаляет format-коды Forge типа §a §l из строки
+        private static String stripCodes(String s) {
+            if (s == null) return "";
+            return s.replaceAll("§[0-9a-fklmnor]", "");
+        }
+
         @Override
         public void processCommand(ICommandSender sender, String[] args) {
             String relPath = args.length > 0 ? args[0] : "prices.json";
 
             Minecraft mc = Minecraft.getMinecraft();
             File outFile = new File(mc.mcDataDir, relPath);
+            File debugFile = new File(mc.mcDataDir, "tooltips_sample.txt");
 
             Map<String, Double> result = new LinkedHashMap<>();
             int hits = 0, scanned = 0;
+            int sampleCount = 0;
+            final int SAMPLE_LIMIT = 100;
 
-            for (Object keyObj : Item.itemRegistry.getKeys()) {
-                String id = keyObj.toString();
-                Item item = (Item) Item.itemRegistry.getObject(id);
-                if (item == null) continue;
+            Writer dbg = null;
+            try {
+                dbg = new OutputStreamWriter(
+                    new FileOutputStream(debugFile), StandardCharsets.UTF_8);
 
-                List<ItemStack> stacks = new ArrayList<>();
-                try {
-                    item.getSubItems(item, item.getCreativeTab(), stacks);
-                } catch (Throwable ignored) {}
-                if (stacks.isEmpty()) {
-                    stacks.add(new ItemStack(item));
-                }
+                for (Object keyObj : Item.itemRegistry.getKeys()) {
+                    String id = keyObj.toString();
+                    Item item = (Item) Item.itemRegistry.getObject(id);
+                    if (item == null) continue;
 
-                for (ItemStack stack : stacks) {
-                    if (stack == null) continue;
-                    scanned++;
-                    List<String> tooltip;
+                    List<ItemStack> stacks = new ArrayList<>();
                     try {
-                        tooltip = stack.getTooltip(mc.thePlayer, true);
-                    } catch (Throwable t) {
-                        continue;
+                        item.getSubItems(item, item.getCreativeTab(), stacks);
+                    } catch (Throwable ignored) {}
+                    if (stacks.isEmpty()) {
+                        stacks.add(new ItemStack(item));
                     }
-                    if (tooltip == null) continue;
-                    for (String line : tooltip) {
-                        if (line == null) continue;
-                        Matcher m = PRICE_RX.matcher(line);
-                        if (m.find()) {
-                            String mapKey = id + ":" + stack.getItemDamage();
-                            double price = Double.parseDouble(m.group(1));
-                            result.put(mapKey, price);
-                            hits++;
-                            break;
+
+                    for (ItemStack stack : stacks) {
+                        if (stack == null) continue;
+                        scanned++;
+                        List<String> tooltip;
+                        try {
+                            tooltip = stack.getTooltip(mc.thePlayer, true);
+                        } catch (Throwable t) {
+                            continue;
+                        }
+                        if (tooltip == null) continue;
+
+                        // Сохраняем первые SAMPLE_LIMIT элементов целиком для отладки
+                        if (sampleCount < SAMPLE_LIMIT) {
+                            sampleCount++;
+                            dbg.write("=== " + id + ":" + stack.getItemDamage() + " ===\n");
+                            for (String line : tooltip) {
+                                dbg.write("  raw : " + line + "\n");
+                                dbg.write("  bare: " + stripCodes(line) + "\n");
+                            }
+                            dbg.write("\n");
+                        }
+
+                        for (String line : tooltip) {
+                            if (line == null) continue;
+                            String clean = stripCodes(line);
+                            Matcher m = PRICE_RX.matcher(clean);
+                            if (m.find()) {
+                                String mapKey = id + ":" + stack.getItemDamage();
+                                double price = Double.parseDouble(m.group(1));
+                                result.put(mapKey, price);
+                                hits++;
+                                break;
+                            }
                         }
                     }
                 }
+            } catch (IOException ex) {
+                sender.addChatMessage(new ChatComponentText(
+                    "[PriceDump] debug write failed: " + ex.getMessage()));
+            } finally {
+                if (dbg != null) try { dbg.close(); } catch (IOException ignored) {}
             }
 
             try (Writer w = new OutputStreamWriter(
@@ -165,8 +203,8 @@ public class PriceDumpMod {
             }
 
             sender.addChatMessage(new ChatComponentText(String.format(
-                "[PriceDump] %d items with price out of %d scanned → %s",
-                hits, scanned, outFile.getAbsolutePath()
+                "[PriceDump] %d items with price out of %d scanned → %s | sample → %s",
+                hits, scanned, outFile.getName(), debugFile.getName()
             )));
         }
     }
