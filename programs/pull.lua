@@ -1,8 +1,9 @@
 -- pull — загрузчик скриптов и библиотек с публичного GitHub-репозитория.
 -- Usage:
---   pull <name> [args...]      скачать (или из кеша) programs/<name>.lua и запустить
---   pull lib/<name>            скачать lib/<name>.lua в /lib/ (не запускать)
---   pull --update <name>       принудительно обновить (работает и для lib)
+--   pull <name> [args...]      programs/<name>.lua: ВСЕГДА свежее, запустить
+--   pull --cached <name>       взять из /home/.pull_cache/, если есть
+--   pull lib/<name>            lib/<name>.lua в /lib/ (один раз; --update перекачает)
+--   pull --update lib/<name>   принудительно обновить библиотеку
 --   pull --list                что лежит в кеше programs
 --   pull --self-update         обновить сам pull.lua в /bin
 
@@ -93,9 +94,10 @@ end
 if #args == 0 then
   io.stderr:write([[
 Usage:
-  pull <name> [args...]   скачать (или из кеша) programs/<name>.lua и запустить
-  pull lib/<name>         скачать lib/<name>.lua в /lib/ (не запускать)
-  pull --update <name>    принудительно обновить
+  pull <name> [args...]   programs/<name>.lua: всегда свежее, запустить
+  pull --cached <name>    из /home/.pull_cache/, если есть
+  pull lib/<name>         lib/<name>.lua в /lib/ (один раз; --update перекачает)
+  pull --update lib/<name>  перетянуть библиотеку
   pull --list             что в кеше
   pull --self-update      обновить сам pull.lua в /bin
 ]])
@@ -124,23 +126,35 @@ else
   subdir = "programs/"
 end
 
-local need_fetch = opts.update or not fs.exists(target_path)
+-- Программы всегда свежие (если не указан --cached);
+-- библиотеки ставятся один раз (если уже есть и нет --update — не качаем).
+local need_fetch
+if is_lib then
+  need_fetch = opts.update or not fs.exists(target_path)
+else
+  need_fetch = not opts.cached
+end
 
 if need_fetch then
   local url = url_for(subdir, name)
   print("[pull] " .. url)
   local body, err = fetch(url)
   if not body then
-    io.stderr:write("[pull] " .. err .. "\n")
-    return 1
-  end
-  local ok, werr = write_file(target_path, body)
-  if not ok then
-    io.stderr:write("[pull] " .. tostring(werr) .. "\n")
-    return 1
+    if not is_lib and fs.exists(target_path) then
+      io.stderr:write("[pull] " .. err .. " — fallback к кешу\n")
+    else
+      io.stderr:write("[pull] " .. err .. "\n")
+      return 1
+    end
+  else
+    local ok, werr = write_file(target_path, body)
+    if not ok then
+      io.stderr:write("[pull] " .. tostring(werr) .. "\n")
+      return 1
+    end
   end
 else
-  print("[pull] cached: " .. target_path .. "   (--update чтобы обновить)")
+  print("[pull] cached: " .. target_path)
 end
 
 -- ── библиотеки не запускаем ──────────────────────────────
