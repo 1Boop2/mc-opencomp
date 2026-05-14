@@ -3,6 +3,7 @@
 -- Usage:
 --   pull inventory                              показать инвентарь один раз (текст)
 --   pull inventory watch                        следить непрерывно (GPU-сетка)
+--   pull inventory dump <slot>                  полный дамп стака слота (NBT/extended)
 --   pull inventory pull <side> <slot> [qty]     забрать из PIM в инвентарь со стороны
 --   pull inventory push <side> <slot> [qty]     положить в PIM из инвентаря со стороны
 
@@ -36,6 +37,57 @@ if opts.verbose then
 end
 
 local cmd = args[1]
+
+-- ── dump <slot> ──────────────────────────────────────────────
+if cmd == "dump" then
+  local slot = tonumber(args[2])
+  if not slot then
+    io.stderr:write("Usage: pull inventory dump <slot>\n")
+    return 1
+  end
+
+  local serialization = require("serialization")
+  local function show(label, value)
+    print("\n=== " .. label .. " ===")
+    if type(value) == "table" then
+      print(serialization.serialize(value, true))
+    else
+      print(tostring(value))
+    end
+  end
+
+  -- 1) Обычный getStackInSlot
+  local ok1, st = pcall(proxy.getStackInSlot, slot)
+  if not ok1 then
+    print("getStackInSlot упал: " .. tostring(st))
+    return 1
+  end
+  if not st then
+    print(string.format("slot %d: пусто", slot))
+    return 0
+  end
+  show(string.format("getStackInSlot(%d)", slot), st)
+
+  -- 2) Попытка extended: иногда вторым аргументом передают true для полного NBT
+  local ok2, st2 = pcall(proxy.getStackInSlot, slot, true)
+  if ok2 and type(st2) == "table" then
+    show(string.format("getStackInSlot(%d, true)", slot), st2)
+  end
+
+  -- 3) getAdvancedMethodsData — у некоторых версий выдаёт метаинфу о расширенных вызовах
+  if type(proxy.getAdvancedMethodsData) == "function" then
+    local ok3, data = pcall(proxy.getAdvancedMethodsData)
+    if ok3 then show("getAdvancedMethodsData()", data) end
+  end
+
+  -- 4) doc('getStackInSlot') — docstring расскажет какие параметры принимает
+  if type(proxy.doc) == "function" then
+    local ok4, d = pcall(proxy.doc, "getStackInSlot")
+    if ok4 then show("doc('getStackInSlot')", d) end
+  end
+
+  return 0
+end
 
 -- ── pull / push ───────────────────────────────────────────────
 if cmd == "pull" or cmd == "push" then
