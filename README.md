@@ -24,10 +24,12 @@ docs/       заметки
 На свежей машине OpenOS (нужна **internet card**) один раз выполни:
 
 ```
-wget -f https://raw.githubusercontent.com/1Boop2/mc-opencomp/main/programs/pull.lua /bin/pull.lua
+wget https://raw.githubusercontent.com/1Boop2/mc-opencomp/main/programs/pull.lua /bin/pull.lua
 ```
 
 После этого `pull <имя>` тянет любой скрипт из `programs/` репозитория и запускает.
+
+> **Важно:** `wget` в OpenOS не перезаписывает существующие файлы (флаг `-f` он игнорирует). Если `/bin/pull.lua` уже есть и его нужно обновить — используй `pull --self-update` (он использует `io.open("w")` и нормально перезаписывает). На крайний случай — `rm /bin/pull.lua` перед `wget`.
 
 **Использование:**
 
