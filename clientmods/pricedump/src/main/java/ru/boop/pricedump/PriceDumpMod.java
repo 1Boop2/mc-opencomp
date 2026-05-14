@@ -33,8 +33,7 @@ import java.util.regex.Pattern;
     modid = PriceDumpMod.MODID,
     name = "PriceDump",
     version = PriceDumpMod.VERSION,
-    acceptableRemoteVersions = "*",
-    clientSideOnly = true
+    acceptableRemoteVersions = "*"
 )
 public class PriceDumpMod {
 
@@ -43,7 +42,11 @@ public class PriceDumpMod {
 
     @Mod.EventHandler
     public void init(FMLInitializationEvent event) {
-        ClientCommandHandler.instance.registerCommand(new DumpCommand());
+        // Регистрируем команду только на клиенте — на сервере ClientCommandHandler
+        // и Minecraft.getMinecraft() недоступны.
+        if (event.getSide().isClient()) {
+            ClientCommandHandler.instance.registerCommand(new DumpCommand());
+        }
     }
 
     public static class DumpCommand extends CommandBase {
