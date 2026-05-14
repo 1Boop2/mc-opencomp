@@ -1,0 +1,32 @@
+// Forge 1.7.10 client-side mod
+// Сборка: ./gradlew build  (нужен Gradle 8.5+ и JDK 17 для запуска самого Gradle;
+// собранный мод работает на JDK 8 в самой игре)
+
+plugins {
+    id 'com.gtnewhorizons.retrofuturagradle' version '1.4.4'
+}
+
+group = 'ru.boop'
+version = '1.0'
+archivesBaseName = 'PriceDump'
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_1_8
+    targetCompatibility = JavaVersion.VERSION_1_8
+}
+
+minecraft {
+    mcVersion = '1.7.10'
+    username = 'Developer'
+}
+
+processResources {
+    inputs.property 'version', project.version
+    filesMatching('mcmod.info') {
+        expand 'version': project.version
+    }
+}
+
+tasks.named('jar', Jar) {
+    archiveClassifier = ''
+}

@@ -1,0 +1,10 @@
+[
+  {
+    "modid": "pricedump",
+    "name": "PriceDump",
+    "description": "Client-side mod: /dumpprices сохраняет все цены из tooltip'ов в JSON.",
+    "version": "${version}",
+    "mcversion": "1.7.10",
+    "authorList": ["Boop"]
+  }
+]
