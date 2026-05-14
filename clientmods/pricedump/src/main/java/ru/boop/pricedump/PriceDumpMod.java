@@ -1,14 +1,19 @@
 package ru.boop.pricedump;
 
+import cpw.mods.fml.common.FMLLog;
 import cpw.mods.fml.common.Mod;
 import cpw.mods.fml.common.event.FMLInitializationEvent;
+import cpw.mods.fml.common.eventhandler.SubscribeEvent;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.entity.EntityClientPlayerMP;
 import net.minecraft.command.CommandBase;
 import net.minecraft.command.ICommandSender;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.ChatComponentText;
 import net.minecraftforge.client.ClientCommandHandler;
+import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.event.entity.EntityJoinWorldEvent;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -40,13 +45,29 @@ public class PriceDumpMod {
     public static final String MODID = "pricedump";
     public static final String VERSION = "1.0";
 
+    private boolean greeted = false;
+
     @Mod.EventHandler
     public void init(FMLInitializationEvent event) {
+        FMLLog.info("[PriceDump %s] init, side=%s", VERSION, event.getSide());
         // Регистрируем команду только на клиенте — на сервере ClientCommandHandler
         // и Minecraft.getMinecraft() недоступны.
         if (event.getSide().isClient()) {
             ClientCommandHandler.instance.registerCommand(new DumpCommand());
+            MinecraftForge.EVENT_BUS.register(this);
+            FMLLog.info("[PriceDump] /dumpprices зарегистрирована");
         }
+    }
+
+    @SubscribeEvent
+    public void onPlayerJoinWorld(EntityJoinWorldEvent event) {
+        if (greeted) return;
+        if (event.world == null || !event.world.isRemote) return;
+        if (!(event.entity instanceof EntityClientPlayerMP)) return;
+        greeted = true;
+        ((EntityClientPlayerMP) event.entity).addChatMessage(
+            new ChatComponentText("§a[PriceDump " + VERSION +
+                "] загружен. Команда: §e/dumpprices"));
     }
 
     public static class DumpCommand extends CommandBase {
